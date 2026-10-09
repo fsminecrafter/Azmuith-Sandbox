@@ -221,7 +221,6 @@ function Install-Dependencies {
     $packages = @(
         @{ Id = 'Kitware.CMake'; Name = 'CMake' },
         @{ Id = 'Git.Git'; Name = 'Git' },
-        @{ Id = 'LunarG.VulkanSDK'; Name = 'Vulkan SDK (includes glslc)' },
         @{ Id = 'Microsoft.VisualStudio.2022.BuildTools'; Name = 'Visual Studio C++ Build Tools' }
     )
     Write-Host "`nThe following Windows build dependencies will be installed:"
@@ -238,8 +237,35 @@ function Install-Dependencies {
         & $winget.Source @arguments
         if ($LASTEXITCODE -ne 0) { Write-Warning "winget failed for $($package.Name) (exit $LASTEXITCODE)." }
     }
+
+    Write-Host "`nSearching the configured winget source for a Vulkan SDK package..."
+    & $winget.Source search --query 'Vulkan SDK' --source winget
+    if ($LASTEXITCODE -eq 0) {
+        $vulkanId = Read-Host 'Enter the exact Vulkan SDK package ID shown above, or press Enter to skip'
+        if ($vulkanId) {
+            & $winget.Source install --id $vulkanId --exact --source winget --accept-source-agreements --accept-package-agreements
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "winget could not install '$vulkanId' (exit $LASTEXITCODE)."
+                Show-VulkanDownloadFallback
+            }
+        } else {
+            Write-Host 'Vulkan SDK installation skipped.'
+        }
+    } else {
+        Write-Warning 'The configured winget source did not return Vulkan SDK packages.'
+        Show-VulkanDownloadFallback
+    }
     Refresh-ProcessEnvironment
     Write-Host "`nRestart the terminal after installing SDKs so PATH changes are visible."
+}
+
+function Show-VulkanDownloadFallback {
+    $downloadUrl = 'https://vulkan.lunarg.com/sdk/home#windows'
+    Write-Host "Install the official Vulkan SDK from: $downloadUrl"
+    if ((Read-Host 'Open the official LunarG download page? [y/N]').ToLowerInvariant() -eq 'y') {
+        Start-Process $downloadUrl
+    }
+    Write-Host 'After installation, rerun setup.ps1 and choose A to add the Vulkan SDK path.'
 }
 
 function Refresh-ProcessEnvironment {
