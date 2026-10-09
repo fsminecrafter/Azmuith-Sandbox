@@ -38,7 +38,9 @@ FetchContent_Declare(imgui
 FetchContent_Declare(physx
     GIT_REPOSITORY https://github.com/NVIDIA-Omniverse/PhysX.git
     GIT_TAG 107.3-physx-5.6.1
-    GIT_SHALLOW TRUE)
+    GIT_SHALLOW TRUE
+    PATCH_COMMAND "${CMAKE_COMMAND}" "-DPHYSX_SOURCE_DIR=<SOURCE_DIR>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_physx.cmake")
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -49,6 +51,8 @@ set(JSON_Install OFF CACHE BOOL "" FORCE)
 set(PX_BUILDSNIPPETS OFF CACHE BOOL "" FORCE)
 set(PX_BUILDPVDRUNTIME OFF CACHE BOOL "" FORCE)
 set(PX_GENERATE_GPU_PROJECTS ${AZMUITH_ENABLE_PHYSX_GPU} CACHE BOOL "" FORCE)
+set(PX_OUTPUT_LIB_DIR "${CMAKE_BINARY_DIR}/physx/lib" CACHE PATH "PhysX library output root")
+set(PX_OUTPUT_BIN_DIR "${CMAKE_BINARY_DIR}/physx/bin" CACHE PATH "PhysX binary output root")
 
 FetchContent_MakeAvailable(glfw glm nlohmann_json)
 FetchContent_GetProperties(imgui)
@@ -68,7 +72,14 @@ if(NOT DEFINED TARGET_BUILD_PLATFORM)
         set(TARGET_BUILD_PLATFORM "linux" CACHE STRING "PhysX target platform")
     endif()
 endif()
+if(MSVC AND MSVC_VERSION GREATER_EQUAL 1950)
+    get_directory_property(_azmuith_compile_options COMPILE_OPTIONS)
+    add_compile_options(/Wv:18)
+endif()
 add_subdirectory("${PHYSX_ROOT_DIR}/compiler/public" "${physx_BINARY_DIR}/public")
+if(MSVC AND MSVC_VERSION GREATER_EQUAL 1950)
+    set_directory_properties(PROPERTIES COMPILE_OPTIONS "${_azmuith_compile_options}")
+endif()
 
 add_library(imgui STATIC
     "${imgui_SOURCE_DIR}/imgui.cpp"

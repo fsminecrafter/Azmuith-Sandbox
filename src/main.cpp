@@ -5,6 +5,7 @@
 #if defined(AZMUITH_ENABLE_PHYSX_GPU)
 #include <gpu/PxGpu.h>
 #endif
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
@@ -328,7 +329,17 @@ public:
         if (first >= bodies_.size() || second >= bodies_.size() || link >= bodies_.size()) return false;
 
         PxTransform linkPose = bodies_[link].actor->getGlobalPose();
-        linkPose.q = PxQuat(PxVec3(1.0f, 0.0f, 0.0f), difference.getNormalized());
+        const PxVec3 localAxis(1.0f, 0.0f, 0.0f);
+        const PxVec3 direction = difference.getNormalized();
+        const PxVec3 rotationAxis = localAxis.cross(direction);
+        const float alignment = std::clamp(localAxis.dot(direction), -1.0f, 1.0f);
+        if (alignment < -0.999999f) {
+            linkPose.q = PxQuat(std::acos(-1.0f), PxVec3(0.0f, 1.0f, 0.0f));
+        } else if (alignment > 0.999999f) {
+            linkPose.q = PxQuat(0.0f, localAxis);
+        } else {
+            linkPose.q = PxQuat(std::acos(alignment), rotationAxis.getNormalized());
+        }
         bodies_[link].actor->setGlobalPose(linkPose);
         return createFixedJoint(first, link, PxTransform(PxIdentity), PxTransform(PxVec3(-length * 0.5f, 0, 0))) &&
             createFixedJoint(second, link, PxTransform(PxIdentity), PxTransform(PxVec3(length * 0.5f, 0, 0)));
@@ -584,14 +595,13 @@ public:
             PxTransform localPose = shape->getLocalPose();
             localPose.p *= factor;
             shape->setLocalPose(localPose);
-            PxBoxGeometry box;
-            PxSphereGeometry sphere;
-            PxCapsuleGeometry capsule;
-            if (shape->getBoxGeometry(box)) {
-                shape->setGeometry(PxBoxGeometry(box.halfExtents * factor));
-            } else if (shape->getSphereGeometry(sphere)) {
-                shape->setGeometry(PxSphereGeometry(sphere.radius * factor));
-            } else if (shape->getCapsuleGeometry(capsule)) {
+            const PxGeometryHolder geometry(shape->getGeometry());
+            if (geometry.getType() == PxGeometryType::eBOX) {
+                shape->setGeometry(PxBoxGeometry(geometry.box().halfExtents * factor));
+            } else if (geometry.getType() == PxGeometryType::eSPHERE) {
+                shape->setGeometry(PxSphereGeometry(geometry.sphere().radius * factor));
+            } else if (geometry.getType() == PxGeometryType::eCAPSULE) {
+                const PxCapsuleGeometry& capsule = geometry.capsule();
                 shape->setGeometry(PxCapsuleGeometry(capsule.radius * factor, capsule.halfHeight * factor));
             }
         }
@@ -887,7 +897,6 @@ private:
         ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
         ImGui::SetNextWindowSize(viewport->WorkSize);
-        ImGui::SetNextWindowViewport(viewport->ID);
         ImGui::Begin("Azmuith Physics Lab", nullptr,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus);

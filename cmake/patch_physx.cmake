@@ -1,0 +1,20 @@
+if(NOT DEFINED PHYSX_SOURCE_DIR)
+    message(FATAL_ERROR "PHYSX_SOURCE_DIR is required to patch the fetched PhysX source")
+endif()
+
+set(_physx_windows_cmake "${PHYSX_SOURCE_DIR}/physx/source/compiler/cmake/windows/CMakeLists.txt")
+if(NOT EXISTS "${_physx_windows_cmake}")
+    message(FATAL_ERROR "PhysX Windows CMake file not found: ${_physx_windows_cmake}")
+endif()
+
+file(READ "${_physx_windows_cmake}" _physx_windows_contents)
+set(_external_dll_guard "IF(PX_COPY_EXTERNAL_DLL OR PUBLIC_RELEASE)")
+set(_optional_dll_guard "IF(PX_COPY_EXTERNAL_DLL)")
+string(FIND "${_physx_windows_contents}" "${_external_dll_guard}" _guard_position)
+if(_guard_position GREATER_EQUAL 0)
+    string(REPLACE "${_external_dll_guard}" "${_optional_dll_guard}"
+        _physx_windows_contents "${_physx_windows_contents}")
+    file(WRITE "${_physx_windows_cmake}" "${_physx_windows_contents}")
+elseif(NOT _physx_windows_contents MATCHES "IF\\(PX_COPY_EXTERNAL_DLL\\)")
+    message(FATAL_ERROR "Could not find the expected PhysX external DLL copy guard")
+endif()
