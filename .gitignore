@@ -1,0 +1,4 @@
+/build/
+/cmake-build-*/
+/.setup-state
+/scene_autosave.json
